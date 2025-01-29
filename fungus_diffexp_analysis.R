@@ -7,22 +7,16 @@ read_col_data <- function(sample_sheet_path) {
   sample_sheet <- read.table(sample_sheet_path, header=TRUE)
   sample_sheet$age = factor(sample_sheet$age)
   sample_sheet$strain = factor(sample_sheet$strain)
+  row.names(sample_sheet) = sample_sheet$name
   return(sample_sheet)
 }
 
-
-merge_count_files <- function(directory, pattern = "*.counts", count_column = 2, id_column = 1) {
-  
-  files <- list.files(path = directory, pattern = pattern, full.names = TRUE)
-
-  if (length(files) == 0) {
-    stop("No files found in the specified directory.")
-  }
-  
+merge_count_files <- function(directory, sample_sheet, count_column = 2, id_column = 1) {
   count_list <- list()
-  for (file in files) {
-    data <- read.table(file, header = TRUE, sep = "\t", stringsAsFactors = FALSE)
-    sample_name <- tools::file_path_sans_ext(basename(file))
+  for(i in 1:nrow(sample_sheet)) {
+    count_file = sample_sheet$filename[i]
+    data <- read.table(paste(directory, count_file, sep = ""), header = FALSE, sep = "\t", stringsAsFactors = FALSE)
+    sample_name <- sample_sheet$name[i]
     count_data <- data %>%
       select(!!id_column, !!count_column) %>%
       rename(TranscriptID = !!id_column, !!sample_name := !!count_column)
@@ -46,40 +40,38 @@ order_and_filter_results <- function(res, padj_threshold=0.05) {
   return(filtered)
 }
 
-plot_a_gene <- function(gene, dds) {
-  plotCounts(dds, gene=gene, intgroup=c("strain", "age"), returnData=TRUE) %>%
-    ggplot(aes(x=age, y=count, color=strain, group=strain)) +
-    geom_point() + geom_line() +
-    scale_y_log10() +
+plot_gene_expression <- function(dataset, standard_name, systematic_name) {
+  df <- plotCounts(dds, gene=systematic_name, intgroup="strain", returnData=TRUE)
+  ggplot(df, aes(x=strain, y=count, color=strain)) +
+    geom_jitter(width=0.2, size=2) +
+    geom_boxplot(alpha=0.5) +
+    scale_y_log10() +  # Log-scale for better visualization
+    labs(title=paste("Expression of", standard_name, "across strains"), y="Normalized Counts") +
     theme_minimal()
 }
 
 
 
-
-## Summarize differential expression - Using the provided sample-level counts
-## and sample sheet answer the following questions:
+## Summarize differential expression
+## Using the provided sample-level counts and sample sheet answer the following questions:
 colData = read_col_data("calico_data_challenge_samplesheet.tsv")
-countData = merge_count_files("RNAseq_counts/")
+countData = merge_count_files("RNAseq_counts/", colData)
 dds <- DESeqDataSetFromMatrix(countData=countData, colData=colData, design=~age + strain + strain:age)
-
-## Which genes are differentially expressed based on age?
-dds_age <- DESeq(dds, test = "LRT", reduced = ~ strain)
-age_results = results(dds_age)
-
-## Which genes are differentially expressed based on Genotype?
-dds_genotype <- DESeq(dds, test = "LRT", reduced = ~ age)
-genotype_results = results(dds_genotype)
-
-## Which genes are differentially expressed based on genotype-specific aging?
-dds_interact <- DESeq(dds, test = "LRT", reduced = ~ age + strain)
-interact_results = results(dds_interact)
 
 ## Sanity Checks
 ## The counts of Knocked-out Genes should be lower in the corresponding strain
-gene <- "YDR110W" # FOB1
-plot_a_gene(gene, dds)
-gene <- "YDL042C" # SIR2
-plot_a_gene(gene, dds)
-gene <- "YLR024C" # UBR2
-plot_a_gene(gene, dds)
+plot_gene_expression(dds, "FOB1", "YDR110W")
+plot_gene_expression(dds, "SIR2", "YDL042C")
+plot_gene_expression(dds, "UBR2", "YLR024C")
+
+## Which genes are differentially expressed based on age?
+dds_age <- DESeq(dds, test = "LRT", reduced = ~ strain)
+results_age = results(dds_age)
+
+## Which genes are differentially expressed based on Genotype?
+dds_genotype <- DESeq(dds, test = "LRT", reduced = ~ age)
+results_genotype = results(dds_genotype)
+
+## Which genes are differentially expressed based on genotype-specific aging?
+dds_interact <- DESeq(dds, test = "LRT", reduced = ~ age + strain)
+results_interact = results(dds_interact)
