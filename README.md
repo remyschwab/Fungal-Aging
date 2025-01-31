@@ -1,6 +1,6 @@
 # Analysis of Aging in S. cerevisiae
 
-A long time ago I supremely messed up a take home assignment for a job interview and altered the course of my life forever. I got over losing the job opportunity but always wanted to figure out the problem I misunderstood back then. Namely,
+A long time ago, I supremely beefed it on a take home assignment for a job interview and altered the course of my life forever. I got over losing the job opportunity but always wanted to figure out the problem I misunderstood back then. Namely,
 
 >How do you do differential expression analysis when there are multiple time points and multiple strains?
 
@@ -99,7 +99,29 @@ This results in the following plots:
 
 So far so good (I think)
 
-## Step 4: Test for Differentially Expressed Genes
+## Step 4: A Visual Preview
+DESeq provides some plots for clustering and PCA. Let's check those:
+
+```R
+vsd <- vst(dds)
+pheatmap(cor(assay(vsd)), annotation_col = colData[,c("age","strain","batch")])
+plotPCA(vsd, intgroup="age")
+plotPCA(vsd, intgroup="strain")
+```
+
+Starting with clustering:
+![heatmap](img/clustered_heatmap.png)
+I don't really find this all that helpful except for maybe there are three-ish overall clusters?
+
+Maybe PCA will save me.
+![pca_age](img/pca_age.png)
+Ok, maybe I'm seeing something.
+
+![pca_strain](img/pca_strain.png)
+Yeah ok, I think I get it. It looks like two of the mutants are aging pretty normally and one mutant (SIR2) ages very differently. I can see why the clustering was hard to interpret so maybe there's a better way to visualize that?
+
+
+## Step 5: Test for Differentially Expressed Genes
 Now the main event:
 ```R
 ## Which genes are differentially expressed based on age?
@@ -116,3 +138,30 @@ results_interact = results(dds_interact)
 ```
 
 The Log-Ratio Test compares my main GLM: `~ strain + age + strain:age` to simpler ones. This should isolate the effects of each condition.
+
+## Step 6: Analyze Results
+Ok! So I should have my answers now, right? The fountain of fungal youth is upon me. Let's take a look at my test results.
+
+
+```R
+> results_age[order(results_age$padj),]
+log2 fold change (MLE): age40.strainDBY1200 
+LRT p-value: '~ age + strain + strain:age' vs '~ strain' 
+DataFrame with 7132 rows and 6 columns
+                 baseMean log2FoldChange     lfcSE      stat       pvalue         padj
+                <numeric>      <numeric> <numeric> <numeric>    <numeric>    <numeric>
+YGR043C          156.2228     0.66782059  0.422822   681.410 7.18465e-142 4.72319e-138
+YGR142W          339.0624    -0.04389081  0.393099   600.128 2.19594e-124 7.21806e-121
+YER103W          419.6521     0.21889553  0.371654   544.441 2.02983e-112 4.44803e-109
+YDR536W           69.9112     2.48654630  1.082079   476.549  7.53918e-98  1.23906e-94
+YMR096W          561.4786     0.00899255  0.304406   474.244  2.35259e-97  3.09318e-94
+```
+
+Ok, well I don't love that. Adjusted pvalues on the order of `-138`? Something seems wrong. I know that each condition only has 2 replicates but still... Let's look at the other conditions
+
+## Step 7: Trying a Different Test
+
+
+
+
+

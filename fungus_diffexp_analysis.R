@@ -1,6 +1,7 @@
 library(DESeq2)
 library(dplyr)
 library(ggplot2)
+library(pheatmap)
 
 
 read_col_data <- function(sample_sheet_path) {
@@ -64,14 +65,34 @@ plot_gene_expression(dds, "FOB1", "YDR110W")
 plot_gene_expression(dds, "SIR2", "YDL042C")
 plot_gene_expression(dds, "UBR2", "YLR024C")
 
+## Check for Sample mislabels
+all(rownames(colData) == colnames(countData))
+# colData <- colData[match(colnames(countData), rownames(colData)), ]
+all(colData(dds)$name == colnames(counts(dds)))
+
+vsd <- vst(dds)
+pheatmap(cor(assay(vsd)), annotation_col = colData[,c("age","strain","batch")])
+plotPCA(vsd, intgroup="age")
+plotPCA(vsd, intgroup="strain")
+plotPCA(vsd, intgroup="batch")
+
+## LRT Version RIDICULOUS ADJUSTED PVALUES
 ## Which genes are differentially expressed based on age?
 dds_age <- DESeq(dds, test = "LRT", reduced = ~ strain)
-results_age = results(dds_age)
+results_age = results(dds_age, alpha = 0.05)
 
 ## Which genes are differentially expressed based on Genotype?
 dds_genotype <- DESeq(dds, test = "LRT", reduced = ~ age)
-results_genotype = results(dds_genotype)
+results_genotype = results(dds_genotype, alpha = 0.05)
 
 ## Which genes are differentially expressed based on genotype-specific aging?
 dds_interact <- DESeq(dds, test = "LRT", reduced = ~ age + strain)
-results_interact = results(dds_interact)
+results_interact = results(dds_interact, alpha = 0.05)
+
+## Wald Test Version
+# Age
+wald_age <- DESeq(dds)
+results_wald_age <- results(wald_age, contrast = c("age", "40", "0"))
+# Genotype
+wald_genotype
+
